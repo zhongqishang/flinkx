@@ -26,6 +26,7 @@ package com.dtstack.flinkx.constants;
 public class ConstantValue {
 
     public static final String STAR_SYMBOL = "*";
+    public static final String STAR_VALUE_SYMBOL = "*v*";
     public static final String POINT_SYMBOL = ".";
     public static final String TWO_POINT_SYMBOL = "..";
     public static final String EQUAL_SYMBOL = "=";

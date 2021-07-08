@@ -104,6 +104,13 @@ public class MongodbInputFormat extends BaseRichInputFormat {
                 Object tempData =doc.get(names[i]);
                 row.setField(i, conventDocument(tempData));
             }
+        }
+        // 新增 *v* 语法，生成 {"_id":"60e6ba75a719ad2643195b50","value":"{\"name\": \"zz\", \"age\": 12}"}
+        else if(metaColumns.size() == 1 && ConstantValue.STAR_VALUE_SYMBOL.equals(metaColumns.get(0).getName())){
+            row = new Row(2);
+            Object id = doc.remove("_id");
+            row.setField(0, id.toString());
+            row.setField(1, doc.toJson());
         } else {
             row = new Row(metaColumns.size());
             for (int i = 0; i < metaColumns.size(); i++) {
