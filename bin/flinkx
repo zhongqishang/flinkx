@@ -50,5 +50,4 @@ JAR_DIR=$FLINKX_HOME/lib/*
 CLASS_NAME=com.dtstack.flinkx.launcher.Launcher
 
 echo "flinkx starting ..."
-nohup $JAVA_RUN -cp "$JAR_DIR:$INTERNAL_HADOOP_CLASSPATHS" $CLASS_NAME $@ &
-tail -f nohup.out
+$JAVA_RUN -cp "$JAR_DIR:$INTERNAL_HADOOP_CLASSPATHS" $CLASS_NAME $@
