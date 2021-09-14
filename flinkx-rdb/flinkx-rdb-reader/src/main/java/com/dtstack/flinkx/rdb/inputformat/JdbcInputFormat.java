@@ -546,7 +546,7 @@ public class JdbcInputFormat extends BaseRichInputFormat {
      * @param querySql       已经创建的查询sql
      * @return
      */
-    private String buildIncrementSql(JdbcInputSplit jdbcInputSplit, String querySql) {
+    protected String buildIncrementSql(JdbcInputSplit jdbcInputSplit, String querySql) {
         String incrementFilter = buildIncrementFilter(incrementConfig.getColumnType(),
                 incrementConfig.getColumnName(),
                 jdbcInputSplit.getStartLocation(),
@@ -689,7 +689,7 @@ public class JdbcInputFormat extends BaseRichInputFormat {
      * @param columnVal  边界值
      * @return
      */
-    private String getLocation(String columnType, Object columnVal) {
+    protected String getLocation(String columnType, Object columnVal) {
         if (columnVal == null) {
             return null;
         }
@@ -794,7 +794,7 @@ public class JdbcInputFormat extends BaseRichInputFormat {
      * 间隔轮询查询起始位置
      * @throws SQLException
      */
-    private void queryStartLocation() throws SQLException{
+    protected void queryStartLocation() throws SQLException{
         StringBuilder builder = new StringBuilder(128);
         builder.append(querySql)
                 .append("ORDER BY ")
