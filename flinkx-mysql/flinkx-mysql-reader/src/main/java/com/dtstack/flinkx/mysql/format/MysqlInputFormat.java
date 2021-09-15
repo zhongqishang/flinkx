@@ -17,7 +17,8 @@
  */
 package com.dtstack.flinkx.mysql.format;
 
-import com.dtstack.flinkx.rdb.inputformat.JdbcInputFormat;
+import com.dtstack.flinkx.mysql.dialect.MySQLDialect;
+import com.dtstack.flinkx.rdb.inputformat.JdbcEnhanceInputFormat;
 import com.dtstack.flinkx.util.DateUtil;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -34,14 +35,18 @@ import static com.dtstack.flinkx.rdb.util.DbUtil.clobToString;
  *
  * @author tudou
  */
-public class MysqlInputFormat extends JdbcInputFormat {
+public class MysqlInputFormat extends JdbcEnhanceInputFormat {
+
+    public MysqlInputFormat() {
+        dialect = new MySQLDialect();
+    }
 
     @Override
     public void openInternal(InputSplit inputSplit) throws IOException {
         // 避免result.next阻塞
-        if(incrementConfig.isPolling()
+        if (incrementConfig.isPolling()
                 && StringUtils.isEmpty(incrementConfig.getStartLocation())
-                && fetchSize == databaseInterface.getFetchSize()){
+                && fetchSize == databaseInterface.getFetchSize()) {
             fetchSize = 1000;
         }
         super.openInternal(inputSplit);
@@ -57,15 +62,15 @@ public class MysqlInputFormat extends JdbcInputFormat {
         try {
             for (int pos = 0; pos < row.getArity(); pos++) {
                 Object obj = resultSet.getObject(pos + 1);
-                if(obj != null) {
-                    if(CollectionUtils.isNotEmpty(columnTypeList)) {
+                if (obj != null) {
+                    if (CollectionUtils.isNotEmpty(columnTypeList)) {
                         String columnType = columnTypeList.get(pos);
-                        if("year".equalsIgnoreCase(columnType)) {
+                        if ("year".equalsIgnoreCase(columnType)) {
                             java.util.Date date = (java.util.Date) obj;
                             obj = DateUtil.dateToYearString(date);
-                        } else if("tinyint".equalsIgnoreCase(columnType)
-                                    || "bit".equalsIgnoreCase(columnType)) {
-                            if(obj instanceof Boolean) {
+                        } else if ("tinyint".equalsIgnoreCase(columnType)
+                                || "bit".equalsIgnoreCase(columnType)) {
+                            if (obj instanceof Boolean) {
                                 obj = ((Boolean) obj ? 1 : 0);
                             }
                         }
@@ -76,7 +81,7 @@ public class MysqlInputFormat extends JdbcInputFormat {
                 row.setField(pos, obj);
             }
             return super.nextRecordInternal(row);
-        }catch (Exception e) {
+        } catch (Exception e) {
             throw new IOException("Couldn't read data - " + e.getMessage(), e);
         }
     }
