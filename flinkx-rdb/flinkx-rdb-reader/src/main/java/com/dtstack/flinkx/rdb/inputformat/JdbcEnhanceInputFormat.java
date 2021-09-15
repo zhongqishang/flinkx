@@ -29,7 +29,10 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.util.FlinkRuntimeException;
 
 import java.io.IOException;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -49,12 +52,35 @@ public class JdbcEnhanceInputFormat extends JdbcInputFormat {
 
     public ChunkSplitter chunkSplitter;
 
+    public void validate() {
+        try {
+            DatabaseMetaData metaData = dbConn.getMetaData();
+            // TODO CHECK PK & Unique
+            List<String> pks = new ArrayList<>();
+            // UNIQUE KEY
+            ResultSet uniqueKeyRs = metaData.getIndexInfo(null, null, table, true, false);
+            while (uniqueKeyRs.next()) {
+                String uniqueKey = uniqueKeyRs.getString("COLUMN_NAME");
+                String seq = uniqueKeyRs.getString("ORDINAL_POSITION");
+                if ("1".equals(seq)) {
+                    pks.add(uniqueKey);
+                }
+            }
+            if (!pks.contains(splitKey)) {
+                throw new FlinkRuntimeException("Not found index.");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new FlinkRuntimeException("validate failed.", e);
+        }
+    }
+
     @Override
     public InputSplit[] createInputSplitsInternal(int minNumSplits) {
         Optional<TableColumn> column;
         try {
             dbConn = getConnection();
-            // TODO CHECK PK & Unique
+            validate();
             column = dialect.getPkType(dbConn, table, splitKey);
         } catch (SQLException e) {
             LOG.error("Failed to open MySQL connection", e);
