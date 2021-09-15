@@ -18,7 +18,8 @@
 
 package com.dtstack.flinkx.postgresql.format;
 
-import com.dtstack.flinkx.rdb.inputformat.JdbcInputFormat;
+import com.dtstack.flinkx.postgresql.dialect.PostgresqlDialect;
+import com.dtstack.flinkx.rdb.inputformat.JdbcEnhanceInputFormat;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.flink.types.Row;
 
@@ -32,7 +33,11 @@ import static com.dtstack.flinkx.rdb.util.DbUtil.clobToString;
  *
  * @author tudou
  */
-public class PostgresqlInputFormat extends JdbcInputFormat {
+public class PostgresqlInputFormat extends JdbcEnhanceInputFormat {
+
+    public PostgresqlInputFormat() {
+        dialect = new PostgresqlDialect();
+    }
 
     @Override
     public Row nextRecordInternal(Row row) throws IOException {
@@ -44,8 +49,8 @@ public class PostgresqlInputFormat extends JdbcInputFormat {
         try {
             for (int pos = 0; pos < row.getArity(); pos++) {
                 Object obj = resultSet.getObject(pos + 1);
-                if(obj != null) {
-                    if(CollectionUtils.isNotEmpty(columnTypeList)) {
+                if (obj != null) {
+                    if (CollectionUtils.isNotEmpty(columnTypeList)) {
                         obj = typeConverter.convert(obj, columnTypeList.get(pos));
                     }
                     obj = clobToString(obj);
@@ -54,7 +59,7 @@ public class PostgresqlInputFormat extends JdbcInputFormat {
                 row.setField(pos, obj);
             }
             return super.nextRecordInternal(row);
-        }catch (Exception e) {
+        } catch (Exception e) {
             throw new IOException("Couldn't read data - " + e.getMessage(), e);
         }
     }
