@@ -18,13 +18,20 @@
 package com.dtstack.flinkx.sqlserver.format;
 
 import com.dtstack.flinkx.enums.ColumnType;
-import com.dtstack.flinkx.rdb.inputformat.JdbcInputFormat;
+import com.dtstack.flinkx.rdb.inputformat.JdbcEnhanceInputFormat;
 import com.dtstack.flinkx.rdb.util.DbUtil;
+import com.dtstack.flinkx.sqlserver.dialect.SqlserverDialect;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.flink.types.Row;
+import org.apache.flink.util.FlinkRuntimeException;
 
 import java.io.IOException;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
 
 import static com.dtstack.flinkx.rdb.util.DbUtil.clobToString;
 
@@ -34,7 +41,42 @@ import static com.dtstack.flinkx.rdb.util.DbUtil.clobToString;
  *
  * @author tudou
  */
-public class SqlserverInputFormat extends JdbcInputFormat {
+public class SqlserverInputFormat extends JdbcEnhanceInputFormat {
+
+    public SqlserverInputFormat() {
+        dialect = new SqlserverDialect();
+    }
+
+    @Override
+    public void validate() {
+        try {
+            DatabaseMetaData metaData = dbConn.getMetaData();
+            // TODO CHECK PK & Unique
+            List<String> pks = new ArrayList<>();
+            // UNIQUE KEY
+            ResultSet uniqueKeyRs;
+            if (table.contains(".")) {
+                String[] arr = table.split("\\.");
+                uniqueKeyRs = metaData.getIndexInfo(null, arr[0], arr[1], true, false);
+            } else {
+                uniqueKeyRs = metaData.getIndexInfo(null, null, table, true, false);
+            }
+            while (uniqueKeyRs.next()) {
+                String uniqueKey = uniqueKeyRs.getString("COLUMN_NAME");
+                String seq = uniqueKeyRs.getString("ORDINAL_POSITION");
+                if ("1".equals(seq)) {
+                    pks.add(uniqueKey);
+                }
+            }
+            if (!pks.contains(splitKey)) {
+                throw new FlinkRuntimeException("Not found index.");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new FlinkRuntimeException("validate failed.", e);
+        }
+    }
+
 
     @Override
     public Row nextRecordInternal(Row row) throws IOException {
