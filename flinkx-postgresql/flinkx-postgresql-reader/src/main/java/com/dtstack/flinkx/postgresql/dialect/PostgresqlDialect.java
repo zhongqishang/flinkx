@@ -5,7 +5,6 @@ import com.dtstack.flinkx.rdb.dialect.JdbcDialect;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.types.DataType;
 
-import java.io.Serializable;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
@@ -18,19 +17,10 @@ import java.util.Optional;
  * @author zhongqs
  * @date 2021-09-13 15:24
  */
-public class PostgresqlDialect implements JdbcDialect, Serializable {
+public class PostgresqlDialect extends JdbcDialect {
     @Override
     public String dialectName() {
         return "PostgreSQL";
-    }
-
-    @Override
-    public boolean splitColumnEvenlyDistributed(TableColumn splitColumn) {
-        String splitType = splitColumn.getTypeName();
-        return "int2".equalsIgnoreCase(splitType) ||
-                "int4".equalsIgnoreCase(splitType) ||
-                "int8".equalsIgnoreCase(splitType) ||
-                "numeric".equalsIgnoreCase(splitType);
     }
 
     @Override

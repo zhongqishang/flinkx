@@ -5,35 +5,43 @@ import com.dtstack.flinkx.rdb.utils.ObjectUtils;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.flink.table.types.logical.RowType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.sql.*;
-import java.util.ArrayList;
+import java.io.Serializable;
+import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-public interface JdbcDialect {
+import static java.math.BigDecimal.ROUND_CEILING;
+
+public abstract class JdbcDialect implements Serializable {
+    private static final Logger LOG = LoggerFactory.getLogger(JdbcDialect.class);
+
+    /**
+     * The maximum evenly distribution factor used to judge the data in table is evenly distributed
+     * or not, the factor could be calculated by MAX(id) - MIN(id) + 1 / rowCount.
+     */
+    public static final Double MAX_EVENLY_DISTRIBUTION_FACTOR = 2.0d;
 
     /**
      * Get the name of jdbc dialect.
      */
-    String dialectName();
-
-    /**
-     * @return the default driver class name, if user not configure the driver class name, then will
-     * use this one.
-     */
-    default Optional<String> defaultDriverName() {
-        return Optional.empty();
+    public String dialectName() {
+        return "";
     }
 
     /**
      * Quotes the identifier. This is used to put quotes around the identifier in case the column
      * name is a reserved keyword, or in case it contains characters that require quotes (e.g.
-     * space). Default using double quotes {@code "} to quote.
+     * space). public using double quotes {@code "} to quote.
      */
-    default String quote(String identifier) {
+    protected String quote(String identifier) {
         return "\"" + identifier + "\"";
     }
 
@@ -43,47 +51,60 @@ public interface JdbcDialect {
      * @param limit number of row to emit. The value of the parameter should be non-negative.
      * @return the limit clause.
      */
-    String getLimitClause(long limit);
+    protected abstract String getLimitClause(long limit);
 
-    DataType convertFromColumn(TableColumn column);
+    public abstract DataType convertFromColumn(TableColumn column);
 
-    Optional<TableColumn> getPkType(Connection connection, String tableName, String splitKey) throws SQLException;
+    public abstract Optional<TableColumn> getPkType(Connection connection, String tableName, String splitKey)
+            throws SQLException;
 
-    default boolean splitColumnEvenlyDistributed(TableColumn splitColumn) {
-        // only column is auto-incremental are recognized as evenly distributed.
-        // TODO: we may use MAX,MIN,COUNT to calculate the distribution in the future.
-        if (splitColumn.isAutoincrement()) {
-            DataType flinkType = convertFromColumn(splitColumn);
-            LogicalTypeRoot typeRoot = flinkType.getLogicalType().getTypeRoot();
-            // currently, we only support split column with type BIGINT, INT, DECIMAL
-            return typeRoot == LogicalTypeRoot.BIGINT
-                    || typeRoot == LogicalTypeRoot.INTEGER
-                    || typeRoot == LogicalTypeRoot.DECIMAL;
-        } else {
+    public boolean isSplitColumnEvenlyDistributed(Connection jdbc,
+                                                  String tableId,
+                                                  TableColumn splitColumn,
+                                                  Object min,
+                                                  Object max,
+                                                  int chunkSize) throws SQLException {
+        // currently, we only support the optimization that split column with type BIGINT, INT,
+        // DECIMAL
+        DataType flinkType = convertFromColumn(splitColumn);
+        LogicalTypeRoot typeRoot = flinkType.getLogicalType().getTypeRoot();
+        if (!(typeRoot == LogicalTypeRoot.BIGINT
+                || typeRoot == LogicalTypeRoot.INTEGER
+                || typeRoot == LogicalTypeRoot.DECIMAL)) {
             return false;
         }
+        if (ObjectUtils.minus(max, min).compareTo(BigDecimal.valueOf(chunkSize)) <= 0) {
+            return true;
+        }
+
+        // only column is numeric and evenly distribution factor is less than
+        // MAX_EVENLY_DISTRIBUTION_FACTOR will be treated as evenly distributed.
+        final long rowCnt = queryCount(jdbc, tableId);
+        final double evenlyDistributionFactor =
+                calculateEvenlyDistributionFactor(min, max, rowCnt);
+        LOG.info(
+                "The evenly distribution factor for table {} is {}",
+                tableId,
+                evenlyDistributionFactor);
+        return evenlyDistributionFactor <= MAX_EVENLY_DISTRIBUTION_FACTOR;
     }
 
-    default int queryCount(Connection jdbc, String tableId)
+    public int queryCount(Connection jdbc, String tableId)
             throws SQLException {
         final String countQuery =
-                String.format(
-                        "SELECT COUNT(1) FROM %s",
-                        quote(tableId));
+                String.format("SELECT COUNT(1) FROM %s", quote(tableId));
         PreparedStatement statement = jdbc.prepareStatement(countQuery);
         ResultSet rs = statement.executeQuery();
 
         if (!rs.next()) {
             // this should never happen
             throw new SQLException(
-                    String.format(
-                            "No result returned after running query [%s]",
-                            countQuery));
+                    String.format("No result returned after running query [%s]", countQuery));
         }
         return rs.getInt(1);
     }
 
-    default Object[] queryMinMax(Connection jdbc, String tableId, TableColumn splitColumn)
+    public Object[] queryMinMax(Connection jdbc, String tableId, TableColumn splitColumn)
             throws SQLException {
         String columnName = splitColumn.getColumnName();
         final String minMaxQuery =
@@ -105,7 +126,7 @@ public interface JdbcDialect {
         return new Object[]{o1, o2};
     }
 
-    default Object queryMin(
+    public Object queryMin(
             Connection jdbc, String tableId, String columnName, Object excludedLowerBound)
             throws SQLException {
         final String minQuery =
@@ -125,7 +146,7 @@ public interface JdbcDialect {
         return rs.getObject(1);
     }
 
-    default Object queryNextChunkMax(
+    public Object queryNextChunkMax(
             Connection jdbc,
             String tableId,
             String splitColumnName,
@@ -150,7 +171,6 @@ public interface JdbcDialect {
 
         PreparedStatement statement = jdbc.prepareStatement(query);
         statement.setObject(1, includedLowerBound);
-        System.out.println(statement.toString());
         ResultSet rs = statement.executeQuery();
         if (!rs.next()) {
             // this should never happen
@@ -161,12 +181,12 @@ public interface JdbcDialect {
         return rs.getObject(1);
     }
 
-    default String buildSplitScanQuery(
+    public String buildSplitScanQuery(
             String tableId, RowType pkRowType, boolean isFirstSplit, boolean isLastSplit) {
         return buildSplitQuery(tableId, pkRowType, isFirstSplit, isLastSplit, -1, true);
     }
 
-    default String buildSplitQuery(
+    public String buildSplitQuery(
             String tableId,
             RowType pkRowType,
             boolean isFirstSplit,
@@ -219,7 +239,7 @@ public interface JdbcDialect {
         }
     }
 
-    default PreparedStatement readTableSplitDataStatement(
+    public PreparedStatement readTableSplitDataStatement(
             Connection jdbc,
             String sql,
             boolean isFirstSplit,
@@ -255,7 +275,7 @@ public interface JdbcDialect {
         }
     }
 
-    default PreparedStatement initStatement(Connection connection, String sql, int fetchSize)
+    public PreparedStatement initStatement(Connection connection, String sql, int fetchSize)
             throws SQLException {
         connection.setAutoCommit(false);
         final PreparedStatement statement = connection.prepareStatement(sql);
@@ -263,7 +283,7 @@ public interface JdbcDialect {
         return statement;
     }
 
-    default void addPrimaryKeyColumnsToCondition(
+    public void addPrimaryKeyColumnsToCondition(
             RowType pkRowType, StringBuilder sql, String predicate) {
         for (Iterator<String> fieldNamesIt = pkRowType.getFieldNames().iterator();
              fieldNamesIt.hasNext(); ) {
@@ -274,7 +294,7 @@ public interface JdbcDialect {
         }
     }
 
-    default String getPrimaryKeyColumnsProjection(RowType pkRowType) {
+    public String getPrimaryKeyColumnsProjection(RowType pkRowType) {
         StringBuilder sql = new StringBuilder();
         for (Iterator<String> fieldNamesIt = pkRowType.getFieldNames().iterator();
              fieldNamesIt.hasNext(); ) {
@@ -286,7 +306,7 @@ public interface JdbcDialect {
         return sql.toString();
     }
 
-    default String getMaxPrimaryKeyColumnsProjection(RowType pkRowType) {
+    public String getMaxPrimaryKeyColumnsProjection(RowType pkRowType) {
         StringBuilder sql = new StringBuilder();
         for (Iterator<String> fieldNamesIt = pkRowType.getFieldNames().iterator();
              fieldNamesIt.hasNext(); ) {
@@ -298,7 +318,7 @@ public interface JdbcDialect {
         return sql.toString();
     }
 
-    default String buildSelectWithRowLimits(
+    public String buildSelectWithRowLimits(
             String tableId,
             int limit,
             String projection,
@@ -319,7 +339,7 @@ public interface JdbcDialect {
         return sql.toString();
     }
 
-    default String buildSelectWithBoundaryRowLimits(
+    public String buildSelectWithBoundaryRowLimits(
             String tableId,
             int limit,
             String projection,
@@ -339,6 +359,30 @@ public interface JdbcDialect {
         sql.append(" ORDER BY ").append(orderBy).append(getLimitClause(limit));
         sql.append(") T");
         return sql.toString();
+    }
+
+    /**
+     * Returns the evenly distribution factor of the table data.
+     *
+     * @param min               the min value of the split column
+     * @param max               the max value of the split column
+     * @param approximateRowCnt the approximate row count of the table.
+     */
+    private static double calculateEvenlyDistributionFactor(
+            Object min, Object max, long approximateRowCnt) {
+        if (!min.getClass().equals(max.getClass())) {
+            throw new IllegalStateException(
+                    String.format(
+                            "Unsupported operation type, the MIN value type %s is different with MAX value type %s.",
+                            min.getClass().getSimpleName(), max.getClass().getSimpleName()));
+        }
+        if (approximateRowCnt == 0) {
+            return Double.MAX_VALUE;
+        }
+        BigDecimal difference = ObjectUtils.minus(max, min);
+        // factor = max - min + 1 / rowCount
+        final BigDecimal subRowCnt = difference.add(BigDecimal.valueOf(1));
+        return subRowCnt.divide(new BigDecimal(approximateRowCnt), 2, ROUND_CEILING).doubleValue();
     }
 
 }

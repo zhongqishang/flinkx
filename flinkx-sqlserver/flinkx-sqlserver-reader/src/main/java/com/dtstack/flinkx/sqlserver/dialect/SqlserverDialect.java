@@ -5,7 +5,6 @@ import com.dtstack.flinkx.rdb.dialect.JdbcDialect;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.types.DataType;
 
-import java.io.Serializable;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
@@ -18,7 +17,7 @@ import java.util.Optional;
  * @author zhongqs
  * @date 2021-09-10 18:02
  */
-public class SqlserverDialect implements JdbcDialect, Serializable {
+public class SqlserverDialect extends JdbcDialect {
 
     @Override
     public String dialectName() {

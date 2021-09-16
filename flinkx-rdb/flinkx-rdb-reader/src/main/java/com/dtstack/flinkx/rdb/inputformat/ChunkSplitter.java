@@ -100,7 +100,7 @@ public class ChunkSplitter {
         }
 
         final List<ChunkRange> chunks;
-        if (dialect.splitColumnEvenlyDistributed(splitColumn)) {
+        if (dialect.isSplitColumnEvenlyDistributed(jdbc, tableId, splitColumn, min, max, chunkSize)) {
             // use evenly-sized chunks which is much efficient
             chunks = splitEvenlySizedChunks(min, max, chunkSize);
         } else {
