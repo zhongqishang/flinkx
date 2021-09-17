@@ -7,6 +7,7 @@ import org.apache.flink.util.FlinkRuntimeException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Duration;
@@ -90,10 +91,7 @@ public class ChunkSplitter {
         final Object min = minMaxOfSplitColumn[0];
         final Object max = minMaxOfSplitColumn[1];
         final int count = dialect.queryCount(jdbc, tableId);
-        int chunkSize = count / minNumSplits;
-        if (count % minNumSplits > 0) {
-            chunkSize++;
-        }
+        int chunkSize = (count - 1) / minNumSplits + 1;
         if (min == null || max == null || min.equals(max)) {
             // empty table, or only one row, return full table scan as a chunk
             return Collections.singletonList(ChunkRange.all());
@@ -101,6 +99,9 @@ public class ChunkSplitter {
 
         final List<ChunkRange> chunks;
         if (dialect.isSplitColumnEvenlyDistributed(jdbc, tableId, splitColumn, min, max, chunkSize)) {
+            // recalculate chunkSize
+            chunkSize = (ObjectUtils.minus(max, min).add(new BigDecimal(1)))
+                    .divide(new BigDecimal(minNumSplits), 0, BigDecimal.ROUND_UP).intValue();
             // use evenly-sized chunks which is much efficient
             chunks = splitEvenlySizedChunks(min, max, chunkSize);
         } else {
