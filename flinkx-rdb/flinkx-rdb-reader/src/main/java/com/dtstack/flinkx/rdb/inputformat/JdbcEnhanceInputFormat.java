@@ -89,7 +89,7 @@ public class JdbcEnhanceInputFormat extends JdbcInputFormat {
         if (!column.isPresent()) {
             throw new RuntimeException("Not Found Split column.");
         }
-        chunkSplitter = new ChunkSplitter(dbConn, dialect, splitKey, column.get());
+        chunkSplitter = new ChunkSplitter(dbConn, dialect, column.get());
         List<JdbcInputSplit> list = chunkSplitter.generateSplits(table, minNumSplits);
         JdbcInputSplit[] splits = list.toArray(new JdbcInputSplit[list.size()]);
         return splits;

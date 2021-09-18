@@ -26,13 +26,11 @@ public class ChunkSplitter {
 
     private final Connection jdbc;
     private final JdbcDialect dialect;
-    private final String splitKey;
     private final TableColumn splitColumn;
 
-    public ChunkSplitter(Connection jdbc, JdbcDialect dialect, String splitKey, TableColumn splitColumn) {
+    public ChunkSplitter(Connection jdbc, JdbcDialect dialect, TableColumn splitColumn) {
         this.jdbc = jdbc;
         this.dialect = dialect;
-        this.splitKey = splitKey;
         this.splitColumn = splitColumn;
     }
 

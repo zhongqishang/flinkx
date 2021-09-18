@@ -1,7 +1,6 @@
 package com.dtstack.flinkx.rdb.bean;
 
 import java.io.Serializable;
-import java.util.Optional;
 
 /**
  * @author zhongqs
