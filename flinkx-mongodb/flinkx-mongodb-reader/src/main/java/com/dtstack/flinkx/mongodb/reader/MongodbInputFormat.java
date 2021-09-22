@@ -26,10 +26,6 @@ import com.dtstack.flinkx.reader.MetaColumn;
 import com.dtstack.flinkx.util.ExceptionUtil;
 import com.dtstack.flinkx.util.GsonUtil;
 import com.dtstack.flinkx.util.StringUtil;
-import com.google.gson.Gson;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import com.mongodb.BasicDBObject;
 import com.mongodb.MongoClient;
 import com.mongodb.client.FindIterable;
@@ -104,6 +100,11 @@ public class MongodbInputFormat extends BaseRichInputFormat {
                 Object tempData =doc.get(names[i]);
                 row.setField(i, conventDocument(tempData));
             }
+        }
+        // 新增 *JSON* 语法，生成 {"_id":"60e6ba75a719ad2643195b50","name": "zz", "age": 12}
+        else if (metaColumns.size() == 1 && ConstantValue.JSON_SYMBOL.equals(metaColumns.get(0).getName())) {
+            row = new Row(1);
+            row.setField(0, doc.toJson());
         }
         // 新增 *v* 语法，生成 {"_id":"60e6ba75a719ad2643195b50","value":"{\"name\": \"zz\", \"age\": 12}"}
         else if(metaColumns.size() == 1 && ConstantValue.STAR_VALUE_SYMBOL.equals(metaColumns.get(0).getName())){
