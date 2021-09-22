@@ -89,20 +89,20 @@ public class ChunkSplitter {
         final Object min = minMaxOfSplitColumn[0];
         final Object max = minMaxOfSplitColumn[1];
         final int count = dialect.queryCount(jdbc, tableId);
-        int chunkSize = (count - 1) / minNumSplits + 1;
         if (min == null || max == null || min.equals(max)) {
             // empty table, or only one row, return full table scan as a chunk
             return Collections.singletonList(ChunkRange.all());
         }
-
+        int chunkSize;
         final List<ChunkRange> chunks;
-        if (dialect.isSplitColumnEvenlyDistributed(jdbc, tableId, splitColumn, min, max, chunkSize)) {
-            // recalculate chunkSize
+        if (dialect.isSplitColumnEvenlyDistributed(tableId, splitColumn, min, max, count)) {
+            // calculate chunkSize
             chunkSize = (ObjectUtils.minus(max, min).add(new BigDecimal(1)))
                     .divide(new BigDecimal(minNumSplits), 0, BigDecimal.ROUND_UP).intValue();
             // use evenly-sized chunks which is much efficient
             chunks = splitEvenlySizedChunks(min, max, chunkSize);
         } else {
+            chunkSize = (count - 1) / minNumSplits + 1;
             // use unevenly-sized chunks which will request many queries and is not efficient.
             chunks = splitUnevenlySizedChunks(tableId, splitColumn, min, max, chunkSize);
         }

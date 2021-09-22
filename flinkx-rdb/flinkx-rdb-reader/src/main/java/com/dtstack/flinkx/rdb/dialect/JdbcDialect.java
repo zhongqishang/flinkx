@@ -58,12 +58,11 @@ public abstract class JdbcDialect implements Serializable {
     public abstract Optional<TableColumn> getPkType(Connection connection, String tableName, String splitKey)
             throws SQLException;
 
-    public boolean isSplitColumnEvenlyDistributed(Connection jdbc,
-                                                  String tableId,
+    public boolean isSplitColumnEvenlyDistributed(String tableId,
                                                   TableColumn splitColumn,
                                                   Object min,
                                                   Object max,
-                                                  int chunkSize) throws SQLException {
+                                                  int rowCnt) {
         // currently, we only support the optimization that split column with type BIGINT, INT,
         // DECIMAL
         DataType flinkType = convertFromColumn(splitColumn);
@@ -73,13 +72,9 @@ public abstract class JdbcDialect implements Serializable {
                 || typeRoot == LogicalTypeRoot.DECIMAL)) {
             return false;
         }
-        if (ObjectUtils.minus(max, min).compareTo(BigDecimal.valueOf(chunkSize)) <= 0) {
-            return true;
-        }
 
         // only column is numeric and evenly distribution factor is less than
         // MAX_EVENLY_DISTRIBUTION_FACTOR will be treated as evenly distributed.
-        final long rowCnt = queryCount(jdbc, tableId);
         final double evenlyDistributionFactor =
                 calculateEvenlyDistributionFactor(min, max, rowCnt);
         LOG.info(
