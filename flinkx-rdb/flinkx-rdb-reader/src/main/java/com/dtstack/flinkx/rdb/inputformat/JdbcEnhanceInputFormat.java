@@ -188,6 +188,7 @@ public class JdbcEnhanceInputFormat extends JdbcInputFormat {
         final String selectSql =
                 dialect.buildSplitScanQuery(
                         table,
+                        metaColumns,
                         (RowType) ROW(FIELD(jdbcInputSplit.getColumn().getColumnName(), dataType)).getLogicalType(),
                         jdbcInputSplit.getChunkRange().getChunkStart() == null,
                         jdbcInputSplit.getChunkRange().getChunkEnd() == null);

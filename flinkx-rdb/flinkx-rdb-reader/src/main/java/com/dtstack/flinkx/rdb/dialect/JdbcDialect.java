@@ -2,6 +2,7 @@ package com.dtstack.flinkx.rdb.dialect;
 
 import com.dtstack.flinkx.rdb.bean.TableColumn;
 import com.dtstack.flinkx.rdb.utils.ObjectUtils;
+import com.dtstack.flinkx.reader.MetaColumn;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.flink.table.types.logical.RowType;
@@ -15,6 +16,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -177,12 +179,13 @@ public abstract class JdbcDialect implements Serializable {
     }
 
     public String buildSplitScanQuery(
-            String tableId, RowType pkRowType, boolean isFirstSplit, boolean isLastSplit) {
-        return buildSplitQuery(tableId, pkRowType, isFirstSplit, isLastSplit, -1, true);
+            String tableId, List<MetaColumn> metaColumns, RowType pkRowType, boolean isFirstSplit, boolean isLastSplit) {
+        return buildSplitQuery(tableId, metaColumns, pkRowType, isFirstSplit, isLastSplit, -1, true);
     }
 
     public String buildSplitQuery(
             String tableId,
+            List<MetaColumn> metaColumns,
             RowType pkRowType,
             boolean isFirstSplit,
             boolean isLastSplit,
@@ -219,8 +222,11 @@ public abstract class JdbcDialect implements Serializable {
         }
 
         if (isScanningData) {
+            String columns = metaColumns.stream()
+                    .map(col -> quote(col.getName()))
+                    .collect(Collectors.joining(","));
             return buildSelectWithRowLimits(
-                    tableId, limitSize, "*", Optional.ofNullable(condition), Optional.empty());
+                    tableId, limitSize, columns, Optional.ofNullable(condition), Optional.empty());
         } else {
             final String orderBy =
                     pkRowType.getFieldNames().stream().collect(Collectors.joining(", "));
