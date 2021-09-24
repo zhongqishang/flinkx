@@ -18,8 +18,8 @@
 
 package com.dtstack.flinkx.kafka.format;
 
-import com.dtstack.flinkx.kafkabase.util.Formatter;
 import com.dtstack.flinkx.kafkabase.format.KafkaBaseOutputFormat;
+import com.dtstack.flinkx.kafkabase.util.Formatter;
 import com.dtstack.flinkx.util.ExceptionUtil;
 import com.dtstack.flinkx.util.MapUtil;
 import org.apache.commons.lang.StringUtils;
@@ -30,6 +30,8 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -43,7 +45,9 @@ import java.util.concurrent.TimeUnit;
 public class KafkaOutputFormat extends KafkaBaseOutputFormat {
     private transient KafkaProducer<String, String> producer;
 
-
+    private String outType;
+    private String tableId;
+    private HashMap<String, Object> binlogMeta;
 
     @Override
     public void configure(Configuration parameters) {
@@ -69,7 +73,23 @@ public class KafkaOutputFormat extends KafkaBaseOutputFormat {
         if (StringUtils.isEmpty(keyMessage) && (!dataCompelOrder)) {
             keyMessage = event.toString();
         }
-        producer.send(new ProducerRecord<>(tp, keyMessage, MapUtil.writeValueAsString(event)), (metadata, exception) -> {
+
+        // FIX by Qishang Zhong
+        Map value;
+        switch (outType) {
+            case "JSON_META":
+                value = Collections.singletonMap(tableId, Collections.singletonList(event));
+                break;
+            case "JSON_BINLOG":
+                value = (Map<String, Object>) binlogMeta.clone();
+                value.put("data", Collections.singletonList(event));
+                break;
+            case "JSON":
+            default:
+                value = event;
+        }
+
+        producer.send(new ProducerRecord<>(tp, keyMessage, MapUtil.writeValueAsString(value)), (metadata, exception) -> {
         if(Objects.nonNull(exception)){
             String errorMessage = String.format("send data failed,data 【%s】 ,error info  %s",event,ExceptionUtil.getErrorMessage(exception));
             LOG.warn(errorMessage);
@@ -87,5 +107,17 @@ public class KafkaOutputFormat extends KafkaBaseOutputFormat {
         LOG.warn("kafka output closeInternal.");
         //未设置具体超时时间 关闭时间默认是long.value  导致整个方法长时间等待关闭不了，因此明确指定20s时间
         producer.close(KafkaBaseOutputFormat.CLOSE_TIME, TimeUnit.MILLISECONDS);
+    }
+
+    public void setOutType(String outType) {
+        this.outType = outType;
+    }
+
+    public void setTableId(String tableId) {
+        this.tableId = tableId;
+    }
+
+    public void setBinlogMeta(HashMap<String, Object> binlogMeta) {
+        this.binlogMeta = binlogMeta;
     }
 }

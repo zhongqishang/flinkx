@@ -48,4 +48,7 @@ public class KafkaConfigKeys {
     public static final String GROUP_ID = "group.id";
 
     public static final String BOOTSTRAP_SERVERS= "bootstrap.servers";
+
+    public static final String KEY_OUT_TYPE = "outType";
+    public static final String KEY_META = "meta";
 }

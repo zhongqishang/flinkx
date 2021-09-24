@@ -18,6 +18,7 @@
 package com.dtstack.flinkx.kafka.writer;
 
 import com.dtstack.flinkx.config.DataTransferConfig;
+import com.dtstack.flinkx.config.WriterConfig;
 import com.dtstack.flinkx.kafka.format.KafkaOutputFormat;
 import com.dtstack.flinkx.kafkabase.writer.HeartBeatController;
 import com.dtstack.flinkx.kafkabase.writer.KafkaBaseWriter;
@@ -25,6 +26,12 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.types.Row;
 import org.apache.kafka.clients.producer.ProducerConfig;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import static com.dtstack.flinkx.kafkabase.KafkaConfigKeys.KEY_META;
+import static com.dtstack.flinkx.kafkabase.KafkaConfigKeys.KEY_OUT_TYPE;
 
 /**
  * Date: 2019/11/21
@@ -34,11 +41,18 @@ import org.apache.kafka.clients.producer.ProducerConfig;
  */
 public class KafkaWriter extends KafkaBaseWriter {
 
+    protected String outType;
+    protected Map<String, String> meta;
+
     public KafkaWriter(DataTransferConfig config) {
         super(config);
         if (!producerSettings.containsKey(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG)) {
             throw new IllegalArgumentException(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG + " must set in producerSettings");
         }
+
+        WriterConfig writerConfig = config.getJob().getContent().get(0).getWriter();
+        outType = writerConfig.getParameter().getStringVal(KEY_OUT_TYPE, "JSON");
+        meta = (Map<String, String>) writerConfig.getParameter().getVal(KEY_META);
     }
 
     @Override
@@ -55,7 +69,9 @@ public class KafkaWriter extends KafkaBaseWriter {
         format.setHeartBeatController(new HeartBeatController());
         format.setDataCompelOrder(dataCompelOrder);
         format.setPartitionAssignColumns(partitionAssignColumns);
-
+        format.setOutType(outType);
+        format.setBinlogMeta(new HashMap<>(meta));
+        format.setTableId(meta.get("table"));
         return createOutput(dataSet, format);
     }
 }

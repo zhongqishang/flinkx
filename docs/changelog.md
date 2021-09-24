@@ -133,3 +133,13 @@ Flinkx 任务配置 JSON 文件：
 
 
 > 分布因子 = (max - min + 1) / count
+
+## 新增 Kafka 输出方式
+新增 outType，meta 字段
+
+|outType | JSON| Kafka OUT|
+|:---|:---|:---|
+|JSON| "meta": {"table" : "tableId"},"outType": "JSON"|{"c5":"1","c6":"chartype","c7":"varchartype"}|
+|JSON_META| "meta": {"table" : "tableId"},"outType": "JSON_META"|{"tableId":[{"c5":"1","c6":"chartype","c7":"varchartype"}]}|
+|JSON_BINLOG| "meta": {"database" : "dara","table" : "tableId", "pkNames" : ["pk"] },"outType": "JSON_BINLOG"|{"database":"dara","pkNames":["pk"],"data":[{"c5":"1","c6":"chartype","c7":"varchartype"}],"table":"tableId"}|
+
